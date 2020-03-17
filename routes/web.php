@@ -13,4 +13,7 @@
 
 Route::get('/', function () {
     return view('welcome');
-});
+})->name('indexPage');
+
+Route::get("/weather", "WeatherController@index")->name('weather');
+Route::resource('order','OrderController');
