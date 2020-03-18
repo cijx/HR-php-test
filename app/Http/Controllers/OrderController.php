@@ -5,8 +5,11 @@ namespace App\Http\Controllers;
 use App\Order;
 use App\Partner;
 use App\Product;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
+use App\Mail\Order as MailOrder;
 
 class OrderController extends Controller
 {
@@ -17,7 +20,37 @@ class OrderController extends Controller
      */
     public function index()
     {
-        $orders = Order::with('products')->paginate(25);
+
+        /* Эту задачу можно решить получив все заказы и рассортировав их, используя методы коллекции filter() и sortBy()  */
+
+        $orders['past-due'] = Order::with('products')
+            ->where('delivery_dt','<',Carbon::now())
+            ->where('status','=','10')
+            ->orderBy('delivery_dt','desc')
+            ->limit(50)
+            ->get();
+
+        $orders['current'] = Order::with('products')
+            ->where('delivery_dt','>',Carbon::now())
+            ->where('delivery_dt','<',Carbon::now()->addHours(24))
+            ->where('status','=','10')
+            ->orderBy('delivery_dt','asc')
+            ->get();
+
+        $orders['new'] = Order::with('products')
+            ->where('delivery_dt','>',Carbon::now())
+            ->where('status','=','0')
+            ->orderBy('delivery_dt','asc')
+            ->limit(50)
+            ->get();
+
+        $orders['completed'] = Order::with('products')
+            ->where('delivery_dt','>',Carbon::today())
+            ->where('delivery_dt','<',Carbon::tomorrow())
+            ->where('status','=','20')
+            ->orderBy('delivery_dt','desc')
+            ->limit(50)
+            ->get();
 
         return view('order.list',compact('orders'));
     }
@@ -93,6 +126,50 @@ class OrderController extends Controller
         $order->status = $request->status;
         $order->partner_id = $request->partner_id;
         $order->save();
+
+        try{
+
+            if($order->status=="20")
+            {
+
+                if(!empty($order->partner) && !empty($order->partner->email)){
+
+                    $partner = $order->partner->email;
+
+                }else{
+
+                    $partner = null;
+
+                }
+
+                $vendors = $order->products->map(function ($product){
+
+                    if(!empty($product->vendor) && !empty($product->vendor->email)){
+
+                        return $product->vendor->email;
+
+                    }else{
+
+                        return null;
+
+                    }
+
+                });
+
+                $mails = $vendors->push($partner)->filter(function ($element){
+                    //todo сделать валидацию адреса
+                    return (!empty($element));
+
+                });
+
+                Mail::to($mails)->send(new MailOrder($order));
+            }
+
+        }catch (\Exception $exception){
+
+            return back()->with('fails', 'Ошибка отправки почты');
+
+        }
 
         return back()->with("success", "Заказ обновлён");
     }

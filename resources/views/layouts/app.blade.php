@@ -29,6 +29,7 @@
             <ul class="nav navbar-nav">
                 <li><a href="{{route('indexPage')}}">домой</a></li>
                 <li><a href="{{route('order.index')}}">заказы</a></li>
+                <li><a href="{{route('product.index')}}">продукты</a></li>
                 <li><a href="{{route('weather')}}">погода</a></li>
             </ul>
         </div>
